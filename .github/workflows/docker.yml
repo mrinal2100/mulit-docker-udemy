@@ -1,82 +1,68 @@
-name: Docker CI/CD
+name: CI/CD Pipeline
+
 on:
   push:
     branches:
-      - main  # or 'master' if that's your default branch
-  pull_request:
-    branches:
       - main
 
-env:
-  AWS_REGION: us-east-1
-  S3_BUCKET: elasticbeanstalk-us-east-1-610924852117
-  APPLICATION_NAME: multi-docker
-  ENVIRONMENT_NAME: MultiDocker-env
-  BUCKET_PATH: docker-multi
-
 jobs:
-  build-and-test:
+  build-and-deploy:
+    # Use an Ubuntu runner, which is similar to the 'dist: focal' and 'sudo: required' environment.
     runs-on: ubuntu-latest
-
+    
+    # Define environment variables for AWS and Docker authentication secrets.
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+      DOCKER_ID: ${{ secrets.DOCKER_ID }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        # Checks out your repository code so the workflow can access it.
+        uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Build test image
+        # Corresponds to 'before_install'
+        run: docker build -t rallycoding/react-test -f ./client/Dockerfile.dev ./client
 
-      - name: Build dev client image for tests
-        run: docker build -t mrinal2100/react-test -f ./client/Dockerfile.dev ./client
-
-      - name: Run tests in client
-        run: docker run -e CI=true mrinal2100/react-test npm test
-
-  deploy:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'  # Only deploy from the main branch
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Run tests
+        # Corresponds to 'script'
+        run: docker run -e CI=true rallycoding/react-test npm test
 
       - name: Log in to Docker Hub
+        # Corresponds to the Docker login part of 'after_success'
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_ID }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ env.DOCKER_ID }}
+          password: ${{ env.DOCKER_PASSWORD }}
 
-      - name: Build production images
+      - name: Build and push all images
+        # Corresponds to the build and push parts of 'after_success'
         run: |
-          docker build -t mrinal2100/multi-client -f ./client/Dockerfile.prod ./client
-          docker build -t mrinal2100/multi-nginx -f ./nginx/Dockerfile.prod ./nginx
-          docker build -t mrinal2100/multi-server -f ./server/Dockerfile.prod ./server
-          docker build -t mrinal2100/multi-worker  -f ./worker/Dockerfile.prod ./worker
-
-      - name: Push images to Docker Hub
-        run: |
+          # Build images
+          docker build -t mrinal2100/multi-client ./client
+          docker build -t mrinal2100/multi-nginx ./nginx
+          docker build -t mrinal2100/multi-server ./server
+          docker build -t mrinal2100/multi-worker ./worker
+          
+          # Push images
           docker push mrinal2100/multi-client
           docker push mrinal2100/multi-nginx
           docker push mrinal2100/multi-server
           docker push mrinal2100/multi-worker
-      - name: Install AWS CLI
-        uses: aws-actions/aws-cli@v1
-
-      - name: Zip Dockerrun.aws.json
-        run: zip -r deploy.zip Dockerrun.aws.json .ebextensions
-
-      - name: Upload to S3
-        run: |
-          aws s3 cp deploy.zip s3://$S3_BUCKET/$BUCKET_PATH/${{ github.sha }}.zip
-
+      
       - name: Deploy to Elastic Beanstalk
-        uses: mrinal2100/beanstalk-deploy@v20
+        # Corresponds to the 'deploy' section. Uses the official AWS action.
+        uses: einaregilsson/beanstalk-deploy@v21
         with:
-          aws_access_key: ${{ secrets.AWS_ACCESS_KEY }}
-          aws_secret_key: ${{ secrets.AWS_SECRET_KEY }}
-          application_name: ${{ env.APPLICATION_NAME }}
-          environment_name: ${{ env.ENVIRONMENT_NAME }}
-          region: ${{ env.AWS_REGION }}
-          version_label: ${{ github.sha }}
-          bucket_name: ${{ env.S3_BUCKET }}
-          bucket_key: ${{ env.BUCKET_PATH }}/${{ github.sha }}.zip
+          aws_access_key: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          application_name: multi-docker
+          environment_name: MultiDocker-env
+          version_label: ${{ github.sha }} # Use commit SHA as version label
+          region: us-east-1
+          deployment_package: docker-multi # This assumes your deployment files are in a directory named 'docker-multi'
+          # Note: The 'bucket_name' and 'bucket_path' are typically handled internally by the action
+          # when providing a deployment_package, but the specific paths are determined by
+          # how you package your application for deployment.
