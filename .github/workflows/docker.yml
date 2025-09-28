@@ -1,5 +1,4 @@
 name: Docker CI/CD
-
 on:
   push:
     branches:
@@ -10,7 +9,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  S3_BUCKET: elasticbeanstalk-us-east-1-923445559289
+  S3_BUCKET: elasticbeanstalk-us-east-1-610924852117
   APPLICATION_NAME: multi-docker
   ENVIRONMENT_NAME: MultiDocker-env
   BUCKET_PATH: docker-multi
@@ -61,7 +60,7 @@ jobs:
           docker push mrinal2100/multi-server
           docker push mrinal2100/multi-worker
       - name: Install AWS CLI
-        uses: aws-actions/aws-cli-action@v1
+        uses: aws-actions/aws-cli@v1
 
       - name: Zip Dockerrun.aws.json
         run: zip -r deploy.zip Dockerrun.aws.json .ebextensions
@@ -71,7 +70,7 @@ jobs:
           aws s3 cp deploy.zip s3://$S3_BUCKET/$BUCKET_PATH/${{ github.sha }}.zip
 
       - name: Deploy to Elastic Beanstalk
-        uses: einaregilsson/beanstalk-deploy@v20
+        uses: mrinal2100/beanstalk-deploy@v20
         with:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY }}
           aws_secret_key: ${{ secrets.AWS_SECRET_KEY }}
