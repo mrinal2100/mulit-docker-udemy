@@ -52,6 +52,8 @@ jobs:
           docker push mrinal2100/multi-server
           docker push mrinal2100/multi-worker
       
+      - name: Zip Dockerrun.aws.json
+        run: zip -r deploy.zip Dockerrun.aws.json
       - name: Deploy to Elastic Beanstalk
         # Corresponds to the 'deploy' section. Uses the official AWS action.
         uses: einaregilsson/beanstalk-deploy@v21
@@ -62,7 +64,7 @@ jobs:
           environment_name: MultiDocker-env
           version_label: ${{ github.sha }} # Use commit SHA as version label
           region: us-east-1
-          deployment_package: docker-multi # This assumes your deployment files are in a directory named 'docker-multi'
+          deployment_package: deploy.zip # This assumes your deployment files are in a directory named 'docker-multi'
           # Note: The 'bucket_name' and 'bucket_path' are typically handled internally by the action
           # when providing a deployment_package, but the specific paths are determined by
           # how you package your application for deployment.
