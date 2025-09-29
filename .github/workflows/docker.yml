@@ -24,11 +24,11 @@ jobs:
 
       - name: Build test image
         # Corresponds to 'before_install'
-        run: docker build -t rallycoding/react-test -f ./client/Dockerfile.dev ./client
+        run: docker build -t mrinal2100/react-test -f ./client/Dockerfile.dev ./client
 
       - name: Run tests
         # Corresponds to 'script'
-        run: docker run -e CI=true rallycoding/react-test npm test
+        run: docker run -e CI=true mrinal2100/react-test npm test
 
       - name: Log in to Docker Hub
         # Corresponds to the Docker login part of 'after_success'
